@@ -126,6 +126,29 @@ def test_target_phase_forced_and_auto():
     assert ctl._target_phase(data, 230, 0, False, 1) is None
 
 
+def test_configured_initial_phase_is_applied_once_on_connection():
+    options = {**OPTIONS, "initial_phase": "1"}
+    client = FakeClient()
+    ctl = ChargeControl(object(), SimpleNamespace(options=options), FakeCoordinator(client))
+    ctl.mode = "fast"
+    ctl._surplus = lambda _data: (0.0, False)
+
+    async def run():
+        # Start on 3P; connection handling requests configured 1P and does not
+        # let the normal Fast-mode target overwrite it in the same poll.
+        await ctl.async_apply(_data(phase_switch_raw=1, state=1))
+        first_phase_writes = [w for w in client.writes if w[0] == "phase_switch"]
+        # Later polls return to the existing phase policy (Fast/Auto -> 3P).
+        ctl._last_switch = monotonic() - 20
+        ctl._initial_phase_at = monotonic() - 20
+        await ctl.async_apply(_data(phase_switch_raw=0, state=1))
+        return first_phase_writes, [w for w in client.writes if w[0] == "phase_switch"]
+
+    first, all_writes = asyncio.run(run())
+    assert first == [("phase_switch", 0)]
+    assert all_writes == [("phase_switch", 0), ("phase_switch", 1)]
+
+
 def test_fast_default_goes_3p_at_plugin_directly():
     ctl, client = _make_control()
     ctl.mode = "fast"  # phase_preference defaults to auto

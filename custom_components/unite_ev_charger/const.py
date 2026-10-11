@@ -122,15 +122,21 @@ CONF_PHASE_SWITCHING: Final = "phase_switching"
 DEFAULT_PHASE_SWITCHING: Final = False
 PHASE_SWITCH_HYSTERESIS: Final = 0.9   # drop to 1p below 0.9 x the 3p-minimum
 
-# --- Phase preference (live select, internal mode) --------------------------
+# --- Phase preference (live select) ------------------------------------------
 # Auto = the integration decides: solar modes follow surplus, fast/manual use
-# all available phases. 1/3 force a fixed phase. Persists (unlike the mode,
-# which resets on disconnect).
+# all available phases. 1/3 force a fixed phase. The live selection persists
+# across Home Assistant restarts.
 PHASE_AUTO: Final = "auto"
 PHASE_1P: Final = "1"
 PHASE_3P: Final = "3"
 PHASE_PREFERENCES: Final = (PHASE_AUTO, PHASE_1P, PHASE_3P)
 DEFAULT_PHASE_PREFERENCE: Final = PHASE_AUTO
+
+# Initial phase request when a vehicle connects. After this one-time request,
+# the normal phase preference / solar policy takes over.
+CONF_INITIAL_PHASE: Final = "initial_phase"
+INITIAL_PHASES: Final = (PHASE_1P, PHASE_3P)
+DEFAULT_INITIAL_PHASE: Final = PHASE_3P
 # After writing register 405, block a new switch for at least this long (the
 # wallbox needs time to settle the CP interruption it performs internally).
 PHASE_SWITCH_SETTLE_MIN_S: Final = 15
@@ -209,10 +215,9 @@ CONF_DLB_CURRENT_L3: Final = "dlb_current_l3"
 CONF_FAILSAFE_CURRENT: Final = "failsafe_current"
 CONF_FAILSAFE_TIMEOUT: Final = "failsafe_timeout"
 
-# --- REST web API (opt-in; only used for the restart button) ----------------
-# The wallbox can be rebooted via its web UI. Modbus has no reboot register, so
-# this is the one thing we do over HTTPS. Fully isolated from the Modbus control
-# path: if REST fails, charging control is unaffected.
+# --- REST web UI/API (opt-in) -----------------------------------------------
+# Used for restart and installation-setting controls. Separate from the Modbus
+# charging path: if REST fails, normal charging control is unaffected.
 CONF_REST_ENABLED: Final = "rest_enabled"
 CONF_REST_USERNAME: Final = "rest_username"
 CONF_REST_PASSWORD: Final = "rest_password"

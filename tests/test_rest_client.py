@@ -21,6 +21,7 @@ from uec.rest_client import (
     async_read_config_fields,
     async_restart_charger,
     async_restore_three_phase,
+    async_set_installation_phase,
     async_set_lockable_cable,
 )
 
@@ -277,6 +278,28 @@ def test_json_set_phase_falls_back_to_nested_on_422():
     ]
 
 
+@pytest.mark.parametrize("value", [0, 1])
+def test_set_installation_phase_writes_selected_value_directly(monkeypatch, value):
+    import uec.rest_client as rest
+
+    async def json_available(_session, _host, _port):
+        return True
+
+    async def no_webconfig(_session, _host):
+        return False
+
+    monkeypatch.setattr(rest, "_probe_json_api", json_available)
+    monkeypatch.setattr(rest, "_has_webconfig", no_webconfig)
+    session = ConfigSession([200])
+
+    route = asyncio.run(
+        async_set_installation_phase(session, "10.0.0.5", "admin", "x", value)
+    )
+
+    assert route == "json:443"
+    assert session.bodies == [[{"fieldKey": _PHASE_FIELD, "value": value}]]
+
+
 def test_php_selected_option_reads_current_limiter_value():
     html = (
         '<select name="currentLimiterValue">'
@@ -357,6 +380,21 @@ def test_restore_three_phase_server_error_falls_back_to_webconfig(monkeypatch):
     assert route == "webconfig"
     assert calls == [0, 1]  # toggle ran on the webconfig client
     assert len(session.config_posts) == 2  # one write + one retry, then fallback
+
+
+def test_set_installation_phase_falls_back_to_webconfig(monkeypatch):
+    calls: list[int] = []
+
+    async def fake_php_set(self, value):
+        calls.append(value)
+
+    monkeypatch.setattr(UnitePhpRestClient, "set_current_limiter_phase", fake_php_set)
+    session = RestoreSession({4443}, config_status=404, webconfig_body=_LOGIN_FORM)
+    route = asyncio.run(
+        async_set_installation_phase(session, "10.0.0.5", "admin", "x", 0)
+    )
+    assert route == "webconfig"
+    assert calls == [0]
 
 
 # --- lockable cable over webconfig -------------------------------------------

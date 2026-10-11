@@ -105,6 +105,10 @@ How the charger charges. Most people only need *Who controls charging* and
   (solar/fuse guard/manual). External means evcc (or another controller)
   decides and this integration only passes it on.
 - **Starting mode** — every session starts with this when you plug in.
+- **Initial phase at connect** — choose whether the charger requests 1 or 3
+  phases once when a car connects. Requires phase switching to be enabled. The
+  normal phase preference and solar control take over on later polls; external
+  controllers such as evcc choose their own phase.
 - **Minimum current** — normally 6 A, adjustable 6–32 A.
 - **Maximum current** — normally 16 A (about 11 kW on 3 phases); never lower
   than the minimum.
@@ -156,9 +160,19 @@ Only change these if you know why. Wrong values can stall charging.
 ### Web UI
 
 Logs in to the charger's web interface. This adds a Restart button — only use
-it when the charger is stuck, it stops an ongoing charging session. The login
-is also required for *Restore for Unite bug* on the Charging screen. The
-password is stored locally only.
+it when the charger is stuck, it stops an ongoing charging session. On a
+three-phase installation it also adds an **Installation phase** selector. This
+writes the charger's installation setting directly: 1P sets it to single-phase
+and 3P sets it to three-phase. The selected setting remains in effect until
+changed again (unless the optional automatic restore resets it to 3P after
+unplugging). The integration uses the JSON API when available and falls back to
+the legacy webconfig interface. This selector requires Web UI login and is
+separate from the runtime **Phase** selector used by evcc, which writes Modbus
+register `405` and only requests the phase for charging.
+
+The **Restore for Unite bug** button is separate again: it briefly toggles the
+installation setting to 1P and back to 3P (10 seconds later) to make the
+charger re-apply its three-phase default. The password is stored locally only.
 
 ### Status & diagnostics
 
@@ -202,10 +216,10 @@ locked that way. A live phase switch does not clear it.
 When enabled, the integration re-applies the installation phase config after
 **every** unplug: it waits a few seconds (so the charger can finish the session;
 plugging back in within this time cancels the restore), then briefly sets the
-charger to 1 phase and back to 3 phases over the web UI, forcing the firmware
-to apply its own default. This runs over the **web UI** (Modbus has no such
-register), so it needs the Web UI login, and it never runs on a genuine
-1-phase installation.
+charger to 1 phase and back to 3 phases over the web UI, with a 10-second pause
+between the writes, forcing the firmware to apply its own default. This runs
+over the **web UI** (Modbus has no such installation-setting control), so it
+needs the Web UI login, and it never runs on a genuine 1-phase installation.
 
 If the charger itself is thoroughly stuck (a plain switch doesn't clear it),
 the reliable fix remains a **restart** — see [Web UI details](#web-ui-details).

@@ -24,6 +24,7 @@ from .const import (
     ABS_MAX_CURRENT_A,
     CONF_CONTROL_MODE,
     CONF_DEFAULT_MODE,
+    CONF_INITIAL_PHASE,
     CONF_DLB_CURRENT_L1,
     CONF_DLB_CURRENT_L2,
     CONF_DLB_CURRENT_L3,
@@ -53,6 +54,7 @@ from .const import (
     DEFAULT_MAX_CURRENT_A,
     DEFAULT_MIN_CURRENT_A,
     DEFAULT_MODE,
+    DEFAULT_INITIAL_PHASE,
     DEFAULT_PHASE_RECOVERY_DWELL_S,
     DEFAULT_PHASE_RECOVERY_ENABLED,
     DEFAULT_PHASE_RECOVERY_OBSERVE_S,
@@ -118,6 +120,7 @@ class ControlConfig:
     phase_recovery_enabled: bool
     phase_recovery_observe: int
     phase_recovery_dwell: int
+    initial_phase: str
 
     @classmethod
     def from_entry(cls, entry: ConfigEntry) -> "ControlConfig":
@@ -153,6 +156,7 @@ class ControlConfig:
             phase_recovery_dwell=int(
                 o.get(CONF_PHASE_RECOVERY_DWELL, DEFAULT_PHASE_RECOVERY_DWELL_S)
             ),
+            initial_phase=o.get(CONF_INITIAL_PHASE, DEFAULT_INITIAL_PHASE),
         )
 
 
@@ -182,6 +186,7 @@ class ChargeControl(PhaseRecoveryMixin):
         # Phase-switch timers.
         self._phase_diff_since: float | None = None
         self._last_switch: float | None = None
+        self._initial_phase_at: float | None = None
         # Current to resume to when re-enabled in external mode.
         self._ext_resume_current: int = self.cfg.max_current
 
@@ -434,9 +439,9 @@ class ChargeControl(PhaseRecoveryMixin):
         # minimum with the Charging switch still off.
         if just_connected:
             await self._reassert_current_on_reconnect()
-            # External (evcc) only: re-assert the requested phase if the freshly
-            # read 405 drifted from evcc's request. Internal mode re-evaluates the
-            # phase later this same cycle, so it is left untouched.
+            # External (evcc) only: re-assert its requested phase if the freshly
+            # read 405 drifted. Built-in mode applies the configured initial
+            # phase below; normal phase management starts on the next poll.
             if (
                 self.is_external
                 and not self.recovery_active
@@ -445,6 +450,8 @@ class ChargeControl(PhaseRecoveryMixin):
                 await self._reassert_phase_on_reconnect(
                     data.phase_switch_raw, context="session"
                 )
+            elif not self.is_external:
+                await self._apply_initial_phase(data)
 
         # External control (evcc): stay passive. The heartbeat keeps running in
         # the coordinator, so the wallbox does not drop to its failsafe.
@@ -470,7 +477,7 @@ class ChargeControl(PhaseRecoveryMixin):
             surplus_w = self._smooth(surplus_w)
         self.available_surplus_w = surplus_w if surplus_valid else None
 
-        if connected:
+        if connected and not just_connected:
             await self._manage_phases(data, voltage, surplus_w, surplus_valid)
 
         target = ctrl.mode_target_a(
@@ -506,6 +513,17 @@ class ChargeControl(PhaseRecoveryMixin):
             return 3
         supported = self.coordinator.device.phases_supported
         return 1 if supported == 1 else 3
+
+    async def _apply_initial_phase(self, data: WallboxData) -> None:
+        """Set the configured phase once when a new vehicle connection appears."""
+        if not self.cfg.phase_switching or not self._charger_supports_3p():
+            return
+        self._initial_phase_at = monotonic()
+        desired_raw = 1 if self.cfg.initial_phase == PHASE_3P else 0
+        if data.phase_switch_raw != desired_raw:
+            await self._write_phase(3 if desired_raw else 1, who="initial")
+            self._last_switch = self._initial_phase_at
+            self._phase_diff_since = None
 
     def _current_phases(self, data: WallboxData) -> int:
         if data.phase_switch_raw == 0:
@@ -566,6 +584,10 @@ class ChargeControl(PhaseRecoveryMixin):
             return
 
         now = monotonic()
+        if self._initial_phase_at is not None:
+            if now - self._initial_phase_at < PHASE_SWITCH_SETTLE_MIN_S:
+                return
+            self._initial_phase_at = None
         # Short post-switch settle so we never write 405 twice in quick
         # succession. The long anti-flap protection for solar is the persist
         # dwell below, NOT this cooldown - otherwise a deliberate (forced) phase

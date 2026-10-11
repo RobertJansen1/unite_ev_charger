@@ -196,6 +196,13 @@
           "1": "1 fase",
           "3": "3 fasen"
         }
+      },
+      "installation_phase": {
+        "name": "Installatiefase",
+        "state": {
+          "1": "1 fase (1P)",
+          "3": "3 fasen (3P)"
+        }
       }
     },
     "number": {
@@ -247,6 +254,7 @@
         "data": {
           "control_mode": "Wie bepaalt het laden?",
           "default_mode": "Startmodus",
+          "initial_phase": "Startfase bij aansluiten",
           "min_current": "Minimum laadstroom",
           "max_current": "Maximale laadstroom",
           "grid_phases": "Netaansluiting lader",
@@ -257,6 +265,7 @@
         "data_description": {
           "control_mode": "Ingebouwd = deze integratie bepaalt hoe er geladen wordt. Extern = evcc (of een andere regelaar) bepaalt; deze integratie geeft het alleen door.",
           "default_mode": "Elke sessie begint hiermee als je insteekt. Tijdens het laden kun je altijd wisselen.",
+          "initial_phase": "Fase die één keer wordt aangevraagd wanneer een auto aansluit. Hiervoor moet faseschakeling zijn ingeschakeld. De normale fasevoorkeur en zonregeling nemen het over bij latere meetrondes; externe regelaars zoals evcc kiezen zelf de fase.",
           "min_current": "Normaal 6A. Instelbaar 6A–32A (ongeveer 1,4 kW per fase bij 6A).",
           "max_current": "Normaal 16A (ongeveer 11 kW bij 3 fasen). Niet lager dan het minimum.",
           "grid_phases": "1-fase of 3-fasen, zoals de elektricien hem heeft aangesloten. Bij twijfel: kijk in de web-UI van de lader. Deze instelling voorkomt ook dat de fase-oplossingen hieronder op een verkeerde installatie losgaan.",
@@ -360,7 +369,7 @@
       },
       "reboot": {
         "title": "Web-UI",
-        "description": "Logt in op de webomgeving van de lader. Dit voegt een Herstart-knop toe — alleen gebruiken als de lader vastzit, een lopende laadsessie stopt ermee. De login is ook nodig voor \"Herstel voor Unite-bug\" op het Laden-scherm.",
+        "description": "Logt in op de webomgeving van de lader. Dit voegt een Herstart-knop toe en, bij een 3-faseninstallatie, een Installatiefase-keuzeschakelaar. De login is ook nodig voor \"Herstel voor Unite-bug\" op het Laden-scherm.",
         "data": {
           "rest_enabled": "Web-UI-login inschakelen",
           "rest_username": "Gebruikersnaam web-UI lader",
@@ -395,6 +404,19 @@
         "manual": "Handmatig",
         "solar": "Zon",
         "min_solar": "Minimum + Zon"
+      }
+    },
+    "phase_preference": {
+      "options": {
+        "auto": "Automatisch",
+        "1": "1 fase",
+        "3": "3 fasen"
+      }
+    },
+    "initial_phase": {
+      "options": {
+        "1": "1 fase (1P)",
+        "3": "3 fasen (3P)"
       }
     },
     "meter_model": {

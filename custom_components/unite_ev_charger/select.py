@@ -3,13 +3,34 @@ from __future__ import annotations
 
 from homeassistant.components.select import SelectEntity
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import CONF_HOST
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
 
-from .const import CHARGE_MODES, DOMAIN, PHASE_PREFERENCES
+from . import control as ctrl
+from .const import (
+    CHARGE_MODES,
+    CONF_GRID_PHASES,
+    CONF_REST_ENABLED,
+    CONF_REST_PASSWORD,
+    CONF_REST_USERNAME,
+    DEFAULT_REST_ENABLED,
+    DEFAULT_REST_USERNAME,
+    DOMAIN,
+    PHASE_1P,
+    PHASE_3P,
+    PHASE_PREFERENCES,
+)
 from .coordinator import WebastoCoordinator
 from .entity import UniteEntity
+from .rest_client import (
+    UniteRestAuthError,
+    UniteRestError,
+    async_set_installation_phase,
+)
 
 
 async def async_setup_entry(
@@ -29,6 +50,13 @@ async def async_setup_entry(
         entities.append(UnitePhaseSelect(coordinator))        # evcc phaseswitch
     elif controller.cfg.phase_switching:
         entities.append(UnitePhasePreferenceSelect(coordinator))  # Auto/1/3
+    if (
+        entry.options.get(CONF_REST_ENABLED, DEFAULT_REST_ENABLED)
+        and ctrl.is_three_phase_install(
+            entry.options.get(CONF_GRID_PHASES), coordinator.device.phases_supported
+        )
+    ):
+        entities.append(UniteInstallationPhaseSelect(coordinator, entry))
 
     async_add_entities(entities)
 
@@ -104,8 +132,8 @@ class UnitePhasePreferenceSelect(UniteEntity, SelectEntity, RestoreEntity):
     """Phase preference for the built-in control loop: Auto / 1 / 3.
 
     Auto = solar follows surplus, fast/manual use all phases. Unlike the mode,
-    this persists (it is not reset when the car is unplugged). Hidden under
-    external (evcc) control.
+    this preference persists when the car is unplugged and across restarts.
+    Hidden under external (evcc) control.
     """
 
     _attr_translation_key = "phase_preference"
@@ -133,3 +161,49 @@ class UnitePhasePreferenceSelect(UniteEntity, SelectEntity, RestoreEntity):
         last = await self.async_get_last_state()
         if last is not None and last.state in PHASE_PREFERENCES:
             self.coordinator.controller.phase_preference = last.state
+
+
+class UniteInstallationPhaseSelect(UniteEntity, SelectEntity):
+    """Change the installation phase setting directly through the web API."""
+
+    _attr_translation_key = "installation_phase"
+    _attr_options = [PHASE_1P, PHASE_3P]
+
+    def __init__(self, coordinator: WebastoCoordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator, "installation_phase")
+        self._entry = entry
+
+    @property
+    def available(self) -> bool:
+        return (
+            super().available
+            and self._entry.options.get(CONF_REST_ENABLED, DEFAULT_REST_ENABLED)
+        )
+
+    @property
+    def current_option(self) -> str | None:
+        phases = self.coordinator.device.phases_supported
+        if phases is None:
+            return None
+        return PHASE_1P if phases == 0 else PHASE_3P
+
+    async def async_select_option(self, option: str) -> None:
+        if option not in (PHASE_1P, PHASE_3P):
+            return
+        try:
+            await async_set_installation_phase(
+                async_get_clientsession(self.hass),
+                self._entry.data[CONF_HOST],
+                self._entry.options.get(CONF_REST_USERNAME, DEFAULT_REST_USERNAME),
+                self._entry.options.get(CONF_REST_PASSWORD, ""),
+                0 if option == PHASE_1P else 1,
+                known_fields=self.coordinator.json_config_fields,
+            )
+        except UniteRestAuthError as err:
+            raise HomeAssistantError(f"Web UI login failed: {err}") from err
+        except UniteRestError as err:
+            raise HomeAssistantError(f"Could not change installation phase: {err}") from err
+        controller = self.coordinator.controller
+        if controller is not None:
+            controller.invalidate_setpoint_cache()
+        await self.coordinator.async_request_refresh()

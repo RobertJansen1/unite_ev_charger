@@ -196,6 +196,13 @@
           "1": "1 phase",
           "3": "3 phases"
         }
+      },
+      "installation_phase": {
+        "name": "Installation phase",
+        "state": {
+          "1": "1 phase (1P)",
+          "3": "3 phases (3P)"
+        }
       }
     },
     "number": {
@@ -247,6 +254,7 @@
         "data": {
           "control_mode": "Who controls charging?",
           "default_mode": "Starting mode",
+          "initial_phase": "Initial phase at connect",
           "min_current": "Minimum current",
           "max_current": "Maximum current",
           "grid_phases": "Charger connection",
@@ -257,6 +265,7 @@
         "data_description": {
           "control_mode": "Built-in = this integration decides how to charge. External = evcc (or another controller) decides; this integration only passes it on.",
           "default_mode": "Every session starts with this when you plug in. You can switch mode anytime while charging.",
+          "initial_phase": "Phase requested once when a vehicle connects. Requires phase switching to be enabled. The normal phase preference and solar control take over on later polls; external controllers such as evcc choose their own phase.",
           "min_current": "Normally 6 A. Adjustable 6–32 A (about 1.4 kW per phase at 6 A).",
           "max_current": "Normally 16 A (about 11 kW on 3 phases). Cannot be lower than the minimum.",
           "grid_phases": "Single- or three-phase, as your electrician wired it. If unsure, check the charger's web UI. This setting also keeps the phase fixes below from running on the wrong installation.",
@@ -360,7 +369,7 @@
       },
       "reboot": {
         "title": "Web UI",
-        "description": "Logs in to the charger's web interface. This adds a Restart button — only use it when the charger is stuck, it stops an ongoing charging session. The login is also required for \"Restore for Unite bug\" on the Charging screen.",
+        "description": "Logs in to the charger's web interface. Adds a Restart button and, on a three-phase installation, an Installation phase selector. The login is also required for \"Restore for Unite bug\" on the Charging screen.",
         "data": {
           "rest_enabled": "Enable web UI login",
           "rest_username": "Charger web UI username",
@@ -395,6 +404,19 @@
         "manual": "Manual",
         "solar": "Solar",
         "min_solar": "Minimum plus Solar"
+      }
+    },
+    "phase_preference": {
+      "options": {
+        "auto": "Auto",
+        "1": "1 phase",
+        "3": "3 phases"
+      }
+    },
+    "initial_phase": {
+      "options": {
+        "1": "1 phase (1P)",
+        "3": "3 phases (3P)"
       }
     },
     "meter_model": {

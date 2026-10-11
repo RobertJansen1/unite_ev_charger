@@ -30,6 +30,7 @@ from .const import (
     CONF_CONTROL_MODE,
     CONF_DEFAULT_MODE,
     CONF_GRID_PHASES,
+    CONF_INITIAL_PHASE,
     CONF_DLB_CURRENT_L1,
     CONF_DLB_CURRENT_L2,
     CONF_DLB_CURRENT_L3,
@@ -71,6 +72,7 @@ from .const import (
     DEFAULT_MAX_CURRENT_A,
     DEFAULT_MIN_CURRENT_A,
     DEFAULT_MODE,
+    DEFAULT_INITIAL_PHASE,
     DEFAULT_PHASE_RESTORE_DELAY_S,
     DEFAULT_PHASE_RESTORE_ON_UNPLUG,
     DEFAULT_PHASE_RECOVERY_DWELL_S,
@@ -87,6 +89,7 @@ from .const import (
     GRID_PHASES,
     GRID_PHASES_1,
     GRID_PHASES_3,
+    INITIAL_PHASES,
     MAX_PHASE_RESTORE_DELAY_S,
     MAX_POLL_INTERVAL,
     METER_DSMR,
@@ -134,6 +137,16 @@ def _control_mode_selector() -> selector.SelectSelector:
         selector.SelectSelectorConfig(
             options=list(CONTROL_MODES),
             translation_key="control_mode",
+            mode=selector.SelectSelectorMode.DROPDOWN,
+        )
+    )
+
+
+def _initial_phase_selector() -> selector.SelectSelector:
+    return selector.SelectSelector(
+        selector.SelectSelectorConfig(
+            options=list(INITIAL_PHASES),
+            translation_key="initial_phase",
             mode=selector.SelectSelectorMode.DROPDOWN,
         )
     )
@@ -419,6 +432,9 @@ class UniteOptionsFlow(OptionsFlow):
                 vol.Required(
                     CONF_GRID_PHASES, default=self._default_grid_phases()
                 ): _grid_phases_selector(),
+                vol.Required(
+                    CONF_INITIAL_PHASE, default=DEFAULT_INITIAL_PHASE
+                ): _initial_phase_selector(),
                 vol.Required(CONF_PHASE_SWITCHING, default=DEFAULT_PHASE_SWITCHING): bool,
                 vol.Required(
                     CONF_PHASE_RECOVERY_ENABLED, default=DEFAULT_PHASE_RECOVERY_ENABLED

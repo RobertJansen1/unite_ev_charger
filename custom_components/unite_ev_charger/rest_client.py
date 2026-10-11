@@ -481,6 +481,51 @@ async def async_restart_charger(
     )
 
 
+async def async_set_installation_phase(
+    session: aiohttp.ClientSession,
+    host: str,
+    username: str,
+    password: str,
+    value: int,
+    *,
+    known_fields: set[str] | None = None,
+) -> str:
+    """Set the installation phase directly (0 = 1P, 1 = 3P).
+
+    Prefer the JSON API and fall back to the legacy webconfig portal when the
+    JSON configuration endpoint or phase field is unavailable.
+    """
+    if value not in (0, 1):
+        raise ValueError("Installation phase value must be 0 (1P) or 1 (3P)")
+
+    try_json = known_fields is None or _PHASE_FIELD in known_fields
+    for port in JSON_API_PORTS if try_json else ():
+        if not await _probe_json_api(session, host, port):
+            continue
+        client = UniteJsonRestClient(session, host, username, password, port=port)
+        try:
+            await _write_with_server_retry(client.set_current_limiter_phase, value)
+        except (UniteRestEndpointMissing, UniteRestServerError):
+            _LOGGER.debug(
+                "JSON phase config write on %s:%s unavailable; trying webconfig",
+                host,
+                port,
+            )
+            break
+        _LOGGER.debug("Set installation phase on %s via JSON API on port %s", host, port)
+        return f"json:{port}"
+
+    if await _has_webconfig(session, host):
+        await UnitePhpRestClient(host, username, password).set_current_limiter_phase(value)
+        _LOGGER.debug("Set installation phase on %s via webconfig", host)
+        return "webconfig"
+
+    raise UniteRestError(
+        "No working configuration endpoint found (tried the JSON API on 443/4443 "
+        "and the HTTP webconfig portal)"
+    )
+
+
 async def async_restore_three_phase(
     session: aiohttp.ClientSession,
     host: str,
